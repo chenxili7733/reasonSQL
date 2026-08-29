@@ -1,0 +1,4 @@
+# CPU-side project dependencies. GPU framework versions should be installed
+# through the CUDA image and scripts/06_install_verl.sh.
+-e .[data,test]
+

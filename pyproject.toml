@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reasonsql"
+version = "0.2.0"
+description = "Text-to-SQL post-training with composite rewards, GRPO and online policy distillation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "ReasonSQL contributors"}]
+dependencies = [
+  "PyYAML>=6.0",
+  "sqlglot>=25.0",
+]
+
+[project.optional-dependencies]
+data = [
+  "pandas>=2.0",
+  "pyarrow>=15.0",
+  "tqdm>=4.66",
+]
+eval = [
+  "torch>=2.6",
+  "transformers>=4.51",
+  "vllm>=0.8",
+]
+train = [
+  "accelerate>=1.0",
+  "datasets>=3.0",
+  "deepspeed>=0.15",
+]
+test = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+include = ["reasonsql*", "common*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+

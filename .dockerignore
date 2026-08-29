@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
+checkpoints
+data/bird
+data/processed
+data/eval
+third_party
+wandb
+

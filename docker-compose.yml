@@ -1,0 +1,22 @@
+services:
+  reasonsql:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: reasonsql:verl-v0.8.0
+    ipc: host
+    shm_size: "64gb"
+    volumes:
+      - ./data:/workspace/reasonsql/data
+      - ./checkpoints:/workspace/reasonsql/checkpoints
+      - ${HF_HOME:-./.cache/huggingface}:/root/.cache/huggingface
+    environment:
+      WANDB_API_KEY: ${WANDB_API_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

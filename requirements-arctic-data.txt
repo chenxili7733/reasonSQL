@@ -1,0 +1,11 @@
+# Arctic-Text2SQL-R1 / OmniSQL preprocessing dependencies.
+# The upstream scripts were validated with Python 3.9, OpenJDK 11 and pyserini 0.22.1.
+# Install NLTK's punkt resource after installation:
+# python -c "import nltk; nltk.download('punkt')"
+datasets>=3.0
+func_timeout
+ijson
+nltk==3.8.1
+numpy==1.24.3
+pyserini==0.22.1
+tqdm
