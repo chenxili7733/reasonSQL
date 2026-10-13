@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -40,73 +43,76 @@ def check_inputs(student_model: str, rl_data: str) -> None:
             raise SystemExit(f"Missing {label}: {path}")
 
 
-def common_args(
-    student_model: str,
-    rl_data: str,
-    output_dir: str,
-    *,
-    experiment: str,
-    student_gpus: str,
-    student_nodes: str,
-    rollout_n: str,
-    train_batch: str,
-    prompt_len: str,
-    response_len: str,
-    epochs: str,
-    param_offload: str,
-    optimizer_offload: str,
-) -> list[str]:
-    max_len = int(prompt_len) + int(response_len)
-    return [
-        "algorithm.adv_estimator=grpo",
-        "algorithm.use_kl_in_reward=False",
-        "algorithm.norm_adv_by_std_in_grpo=True",
-        f"data.train_files={rl_data}",
-        f"data.val_files={rl_data}",
-        f"data.train_batch_size={train_batch}",
-        f"data.max_prompt_length={prompt_len}",
-        f"data.max_response_length={response_len}",
-        "data.filter_overlong_prompts=True",
-        "data.truncation=error",
-        f"actor_rollout_ref.model.path={student_model}",
-        "actor_rollout_ref.model.enable_gradient_checkpointing=True",
-        "actor_rollout_ref.model.use_remove_padding=True",
-        "actor_rollout_ref.actor.optim.lr=1e-6",
-        "actor_rollout_ref.actor.ppo_mini_batch_size=128",
-        "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4",
-        "actor_rollout_ref.actor.use_dynamic_bsz=True",
-        "actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384",
-        "actor_rollout_ref.actor.use_kl_loss=False",
-        "actor_rollout_ref.actor.entropy_coeff=0.0",
-        "actor_rollout_ref.actor.clip_ratio=0.2",
-        f"actor_rollout_ref.actor.fsdp_config.param_offload={param_offload}",
-        f"actor_rollout_ref.actor.fsdp_config.optimizer_offload={optimizer_offload}",
-        "actor_rollout_ref.rollout.name=vllm",
-        "actor_rollout_ref.rollout.mode=sync",
-        f"actor_rollout_ref.rollout.n={rollout_n}",
-        "actor_rollout_ref.rollout.temperature=1.0",
-        "actor_rollout_ref.rollout.top_p=0.95",
-        "actor_rollout_ref.rollout.top_k=-1",
-        "actor_rollout_ref.rollout.tensor_model_parallel_size=1",
-        "actor_rollout_ref.rollout.gpu_memory_utilization=0.45",
-        f"actor_rollout_ref.rollout.max_model_len={max_len}",
-        "actor_rollout_ref.rollout.max_num_batched_tokens=16384",
-        "actor_rollout_ref.rollout.free_cache_engine=True",
-        f"custom_reward_function.path={ROOT / 'reasonsql/verl_reward.py'}",
-        "custom_reward_function.name=compute_score",
-        "trainer.project_name=reasonsql",
-        f"trainer.experiment_name={experiment}",
-        "trainer.logger=[console,wandb]",
-        f"trainer.nnodes={student_nodes}",
-        f"trainer.n_gpus_per_node={student_gpus}",
-        f"trainer.total_epochs={epochs}",
-        "trainer.save_freq=50",
-        "trainer.test_freq=-1",
-        "trainer.val_before_train=False",
-        "trainer.resume_mode=auto",
-        f"trainer.default_local_dir={output_dir}",
-        "trainer.device=cuda",
-    ]
+def load_config(path: str) -> dict[str, Any]:
+    """Load a veRL/Hydra override configuration."""
+    config_path = Path(path)
+    if not config_path.is_file():
+        raise SystemExit(f"Missing configuration file: {config_path}")
+    with config_path.open(encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    if not isinstance(config, dict):
+        raise SystemExit("Configuration root must be a YAML mapping")
+    return config
+
+
+def resolve_path(value: str) -> str:
+    """Resolve project-relative paths while preserving absolute paths."""
+    path = Path(value)
+    return str(path if path.is_absolute() else ROOT / path)
+
+
+def hydra_args(values: dict[str, Any], prefix: str = "") -> list[str]:
+    """Flatten a nested mapping into Hydra ``key=value`` overrides."""
+    args: list[str] = []
+    for key, value in values.items():
+        name = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, dict):
+            args.extend(hydra_args(value, name))
+        elif isinstance(value, bool):
+            args.append(f"{name}={value}")
+        elif isinstance(value, list):
+            args.append(f"{name}=[{','.join(map(str, value))}]")
+        elif value is not None:
+            args.append(f"{name}={value}")
+    return args
+
+
+def config_value(config: dict[str, Any], dotted_key: str) -> Any:
+    """Return a nested config value, failing with a useful launcher error."""
+    value: Any = config
+    for key in dotted_key.split("."):
+        if not isinstance(value, dict) or key not in value:
+            raise SystemExit(f"Configuration is missing '{dotted_key}'")
+        value = value[key]
+    return value
+
+
+def normalize_grpo_paths(config: dict[str, Any]) -> None:
+    """Resolve the project-relative paths used by the GRPO launcher in place."""
+    for dotted_key in (
+        "actor_rollout_ref.model.path",
+        "data.train_files",
+        "data.val_files",
+        "trainer.default_local_dir",
+    ):
+        parent: Any = config
+        keys = dotted_key.split(".")
+        for key in keys[:-1]:
+            if not isinstance(parent, dict) or key not in parent:
+                raise SystemExit(f"Configuration is missing '{dotted_key}'")
+            parent = parent[key]
+        value = parent.get(keys[-1]) if isinstance(parent, dict) else None
+        if not isinstance(value, str):
+            raise SystemExit(f"Configuration field '{dotted_key}' must be a string path")
+        parent[keys[-1]] = resolve_path(value)
+
+
+def check_grpo_inputs(config: dict[str, Any]) -> None:
+    """Validate the model and training data named by a native veRL config."""
+    check_inputs(
+        str(config_value(config, "actor_rollout_ref.model.path")),
+        str(config_value(config, "data.train_files")),
+    )
 
 
 def launch(args: list[str], extra: list[str]) -> None:

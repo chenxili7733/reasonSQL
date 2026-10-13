@@ -33,7 +33,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--student-model", default=str(ROOT / "checkpoints" / "student_sft_qwen2.5_coder_7b"))
     parser.add_argument("--teacher-model", default="Qwen/Qwen2.5-Coder-32B-Instruct")
-    parser.add_argument("--rl-data", default=str(ROOT / "data" / "processed" / "bird_rl_2000.parquet"))
+    parser.add_argument("--rl-data", default=str(ROOT / "data" / "processed" / "bird_rl_openai_2000.parquet"))
     parser.add_argument("--expected-gpus", type=int, default=8)
     parser.add_argument("--check-tokenizers", action="store_true")
     parser.add_argument(

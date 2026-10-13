@@ -1,4 +1,9 @@
-# CPU-side project dependencies. GPU framework versions should be installed
-# through the CUDA image and scripts/06_install_verl.sh.
--e .[data,test]
+# Install after a CUDA-compatible PyTorch build.
+transformers>=4.51
+accelerate>=1.0
+datasets>=3.0
+deepspeed>=0.15
+vllm>=0.8
+llamafactory>=0.9.1
+wandb>=0.18
 

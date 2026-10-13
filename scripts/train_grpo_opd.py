@@ -1,7 +1,17 @@
 """Python launcher for GRPO + veRL native OPD."""
 from __future__ import annotations
 import argparse
-from _verl_common import ROOT, check_inputs, common_args, env, launch, setup_environment
+from _verl_common import (
+    ROOT,
+    check_inputs,
+    env,
+    hydra_args,
+    load_config,
+    launch,
+    normalize_grpo_paths,
+    resolve_path,
+    setup_environment,
+)
 
 
 def main() -> None:
@@ -19,7 +29,7 @@ def main() -> None:
     )
     p.add_argument(
         "--rl-data",
-        default=env("RL_DATA", str(ROOT / "data/processed/bird_rl_2000.parquet")),
+        default=env("RL_DATA", str(ROOT / "data/processed/bird_rl_openai_2000.parquet")),
     )
     p.add_argument(
         "--output-dir", default=env("OUTPUT_DIR", str(ROOT / "checkpoints/grpo_opd"))
@@ -60,22 +70,26 @@ def main() -> None:
         raise SystemExit(
             "Teacher topology must satisfy TP * replicas == teacher GPUs/node * teacher nodes"
         )
-    args = common_args(
-        ns.student_model,
-        ns.rl_data,
-        ns.output_dir,
-        experiment="grpo-opd",
-        student_gpus=ns.gpus_per_node,
-        student_nodes=ns.nodes,
-        rollout_n=ns.rollout_n,
-        train_batch=ns.train_batch_size,
-        prompt_len=ns.max_prompt_length,
-        response_len=ns.max_response_length,
-        epochs=ns.epochs,
-        param_offload=ns.param_offload,
-        optimizer_offload=ns.optimizer_offload,
-    )
+    config = load_config(str(ROOT / "configs/verl/grpo.yaml"))
+    normalize_grpo_paths(config)
+    # Keep this legacy CLI interface as native veRL/Hydra overrides.
+    args = hydra_args(config)
     args += [
+        f"actor_rollout_ref.model.path={resolve_path(ns.student_model)}",
+        f"data.train_files={resolve_path(ns.rl_data)}",
+        f"data.val_files={resolve_path(ns.rl_data)}",
+        f"trainer.default_local_dir={resolve_path(ns.output_dir)}",
+        f"trainer.n_gpus_per_node={ns.gpus_per_node}",
+        f"trainer.nnodes={ns.nodes}",
+        f"trainer.total_epochs={ns.epochs}",
+        "trainer.experiment_name=grpo-opd",
+        f"data.train_batch_size={ns.train_batch_size}",
+        f"data.max_prompt_length={ns.max_prompt_length}",
+        f"data.max_response_length={ns.max_response_length}",
+        f"actor_rollout_ref.rollout.n={ns.rollout_n}",
+        f"actor_rollout_ref.rollout.max_model_len={int(ns.max_prompt_length) + int(ns.max_response_length)}",
+        f"actor_rollout_ref.actor.fsdp_config.param_offload={ns.param_offload}",
+        f"actor_rollout_ref.actor.fsdp_config.optimizer_offload={ns.optimizer_offload}",
         "distillation.enabled=True",
         f"distillation.teacher_models.teacher_model.model_path={ns.teacher_model}",
         f"distillation.teacher_models.teacher_model.num_replicas={replicas}",

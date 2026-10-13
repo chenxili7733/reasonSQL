@@ -11,10 +11,10 @@ def main() -> None:
     p.add_argument("--config", default=str(ROOT / "configs/sft.yaml"))
     p.add_argument("--gpus", default=os.environ.get("STUDENT_GPUS", "0,1,2,3"))
     ns, extra = p.parse_known_args()
-    data = os.environ.get("DATA_FILE", str(ROOT / "data/processed/bird_sft.jsonl"))
+    data = os.environ.get("DATA_FILE", str(ROOT / "data/processed/bird_sft_openai.jsonl"))
     if not Path(data).is_file():
         raise SystemExit(
-            f"Missing SFT data: {data}. Run scripts/01_prepare_data.py first."
+            f"Missing SFT data: {data}. Run scripts/prepare_openai_data.py first."
         )
     run_env = os.environ.copy()
     run_env.update(

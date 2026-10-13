@@ -34,7 +34,7 @@ gradient_checkpointing: true
 # Keep FlashAttention optional so a fresh cloud image does not fail before
 # training merely because a matching flash-attn wheel is unavailable.
 flash_attn: auto
-ddp_timeout: 180000000
+ddp_timeout: 18000
 
 logging_steps: 5
 save_steps: 100
